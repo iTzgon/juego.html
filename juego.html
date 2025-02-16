@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Voz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+        }
+        #game-area {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Juego de Voz</h1>
+    <button id="start-game">Start Game</button>
+    <button id="restart-game" style="display:none;">Reiniciar</button>
+    <div id="game-area">
+        <p id="phrase"></p>
+        <p id="timer">Tiempo restante: 15s</p>
+    </div>
+    <p id="status"></p>
+    <p id="log"></p>
+    <audio id="audio-playback" controls style="display:none;"></audio>
+    
+    <script>
+        const phrases = [
+            "El mundo es redondo y el lugar que puede parecer el final también puede ser el principio.",
+            "La vida es un eco: lo que envías, regresa; lo que siembras, cosechas.",
+            "El hecho de haber nacido es un mal augurio para la inmortalidad.",
+            "Todos deberiamos estar agradecidos por aquellas personas que reavivan el espiritu internno.",
+            "El fracaso es éxito si aprendemos de él.",
+            "Existir es cambiar, cambiar es madurar, madurar es crear uno mismo sin cesar",
+            "Las arrugas deberían indicar simplemente dónde han estado las sonrisas",
+            "Las oportunidades no ocurren, las creas."
+        ];
+        let timer;
+        let mediaRecorder;
+        let audioChunks = [];
+
+        document.getElementById("start-game").addEventListener("click", startGame);
+        document.getElementById("restart-game").addEventListener("click", restartGame);
+
+        function startGame() {
+            document.getElementById("game-area").style.display = "block";
+            document.getElementById("status").innerText = "";
+            document.getElementById("log").innerText = "";
+            document.getElementById("restart-game").style.display = "block";
+            document.getElementById("audio-playback").style.display = "none";
+            
+            const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+            document.getElementById("phrase").innerText = randomPhrase;
+            startSpeechRecognition(randomPhrase);
+        }
+
+        function restartGame() {
+            clearInterval(timer);
+            document.getElementById("game-area").style.display = "none";
+            document.getElementById("status").innerText = "";
+            document.getElementById("log").innerText = "";
+            document.getElementById("restart-game").style.display = "none";
+            document.getElementById("audio-playback").style.display = "none";
+        }
+
+        async function startSpeechRecognition(targetPhrase) {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = "es-ES";
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            
+            let timeLeft = 15;
+            document.getElementById("timer").innerText = `Tiempo restante: ${timeLeft}s`;
+            
+            timer = setInterval(() => {
+                timeLeft--;
+                document.getElementById("timer").innerText = `Tiempo restante: ${timeLeft}s`;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    recognition.stop();
+                    stopRecording();
+                    document.getElementById("status").innerText = "¡Tiempo agotado! Has perdido.";
+                }
+            }, 1000);
+            
+            recognition.start();
+            startRecording();
+            
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript.trim();
+                document.getElementById("log").innerText = `Detectado: ${transcript}`;
+                clearInterval(timer);
+                stopRecording();
+                if (transcript.toLowerCase() === targetPhrase.toLowerCase()) {
+                    document.getElementById("status").innerText = "¡Correcto! Has ganado.";
+                } else {
+                    document.getElementById("status").innerText = "Incorrecto. Has perdido.";
+                }
+                recognition.stop();
+            };
+
+            recognition.onerror = function() {
+                clearInterval(timer);
+                stopRecording();
+                document.getElementById("status").innerText = "Error en la detección de voz.";
+            };
+        }
+
+        async function startRecording() {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audioElement = document.getElementById("audio-playback");
+                audioElement.src = audioUrl;
+                audioElement.style.display = "block";
+            };
+            mediaRecorder.start();
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+            }
+        }
+    </script>
+</body>
+</html>
